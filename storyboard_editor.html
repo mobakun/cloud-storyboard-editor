@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業分鏡表編輯器 - 雲端儲存版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+        
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background-color: #f3f4f6; 
+            color: #333; 
+        }
+
+        #status-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 3000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            backdrop-filter: blur(4px);
+        }
+
+        #login-screen { 
+            display: flex; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background-color: #f3f4f6; 
+            z-index: 1000; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        .login-card { 
+            background: white; 
+            padding: 2.5rem; 
+            border-radius: 1rem; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+            width: 100%; 
+            max-width: 400px; 
+        }
+
+        #main-editor { display: none; }
+
+        .storyboard-page { 
+            width: 210mm; 
+            min-height: 297mm; 
+            padding: 15mm; 
+            margin: 20px auto; 
+            background: white; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.1); 
+            border: 1px solid #d1d5db; 
+        }
+
+        .sb-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            border: 2px solid #000; 
+        }
+
+        .sb-header { 
+            background-color: #f9fafb; 
+            font-weight: bold; 
+            text-align: center; 
+            font-size: 13px; 
+        }
+
+        .sb-table th, .sb-table td { 
+            border: 1px solid #000; 
+            padding: 8px; 
+            vertical-align: top; 
+        }
+
+        .col-cut { width: 45px; text-align: center; }
+        .col-picture { width: 300px; }
+        
+        .picture-box { 
+            width: 100%; 
+            aspect-ratio: 16 / 9; 
+            background-color: #fdfdfd; 
+            border: 2px solid #000; 
+            position: relative; 
+            overflow: hidden; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            outline: none; 
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .unsaved-change {
+            background-color: #fff7ed !important; 
+            border-color: #fb923c !important;
+        }
+
+        .picture-box img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .img-error {
+            background-color: #fee2e2 !important;
+            border: 2px dashed #ef4444 !important;
+        }
+
+        .upload-overlay {
+            position: absolute;
+            z-index: 2;
+            background: rgba(255,255,255,0.9);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            border: 1px solid #ccc;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .picture-box:hover .upload-overlay { opacity: 1; }
+
+        .text-input { 
+            width: 100%; 
+            border: none; 
+            outline: none; 
+            resize: none; 
+            background: transparent; 
+            font-size: 13px; 
+            line-height: 1.5; 
+            min-height: 100px; 
+            transition: background-color 0.3s;
+        }
+
+        .controls { 
+            position: fixed; 
+            bottom: 24px; 
+            right: 24px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            z-index: 50; 
+        }
+
+        .header-field { 
+            border: none; 
+            border-bottom: 1px solid #ddd; 
+            padding: 2px 4px; 
+            font-size: 13px; 
+            outline: none; 
+            width: 100%; 
+            background: transparent; 
+            transition: background-color 0.3s;
+        }
+
+        .loading-spinner { 
+            border: 4px solid rgba(255, 255, 255, 0.3); 
+            border-radius: 50%; 
+            border-top: 4px solid #fff; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin-bottom: 1rem;
+        }
+
+        #preview-player {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 2000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .player-content {
+            width: 80%;
+            max-width: 1000px;
+            aspect-ratio: 16 / 9;
+            background: #111;
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        #player-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        @media print { 
+            .no-print { display: none !important; } 
+            .storyboard-page { margin: 0; box-shadow: none; border: none; } 
+            body { background-color: white; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="status-overlay" class="no-print">
+        <div class="loading-spinner"></div>
+        <h2 id="status-text" class="text-xl font-bold tracking-widest uppercase text-center px-4">處理中...</h2>
+    </div>
+
+    <!-- 預覽播放器 -->
+    <div id="preview-player" class="no-print">
+        <button onclick="closePlayer()" class="absolute top-6 right-6 text-white text-4xl hover:text-gray-400">&times;</button>
+        <div class="player-content">
+            <img id="player-img" src="" alt="Preview">
+            <!-- 顯示當前播放資訊 -->
+            <div id="player-info" class="absolute bottom-4 left-4 text-white bg-black/50 px-3 py-1 rounded text-sm">
+                Cut: 1 | Duration: 2s
+            </div>
+        </div>
+        <div class="flex items-center gap-8 mt-10 text-white">
+            <button onclick="prevFrame()" class="text-2xl hover:text-blue-400 transition-colors">上一步</button>
+            <button onclick="togglePlay()" class="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center text-2xl hover:bg-blue-500 transition-colors">
+                <span id="play-icon">▶️</span>
+            </button>
+            <button onclick="nextFrame()" class="text-2xl hover:text-blue-400 transition-colors">下一步</button>
+        </div>
+    </div>
+
+    <!-- 認證頁面 -->
+    <div id="login-screen">
+        <div class="login-card">
+            <h2 id="auth-title" class="text-2xl font-bold text-center mb-6">分鏡表系統</h2>
+            <div class="space-y-4">
+                <input type="text" id="login-user" class="w-full px-4 py-3 border rounded-lg" placeholder="用戶名">
+                <input type="password" id="login-pass" class="w-full px-4 py-3 border rounded-lg" placeholder="密碼">
+                <button onclick="handleAuth()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg">確認進入</button>
+                <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="w-full text-blue-500 text-xs font-bold">註冊新帳號</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯器主畫面 -->
+    <div id="main-editor">
+        <div class="max-w-5xl mx-auto pt-10 pb-4 no-print flex justify-between items-start">
+            <div class="flex-grow">
+                <input type="text" id="project-title" oninput="markChanged(this)" class="header-field text-3xl font-bold border-none" placeholder="專案名稱...">
+                <div class="flex gap-4 mt-2">
+                    <input type="text" id="director-name" oninput="markChanged(this)" class="header-field" placeholder="導演">
+                    <input type="text" id="project-date" oninput="markChanged(this)" class="header-field" placeholder="日期">
+                </div>
+            </div>
+            <div class="text-right ml-4 flex flex-col items-end">
+                <div id="user-display" class="text-xs font-bold">User: -</div>
+                <div id="sync-status" class="text-[10px] text-blue-500 font-bold mt-1">Ready</div>
+                <button onclick="logout()" class="mt-2 text-[10px] bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded font-bold text-gray-600 transition-colors">登出</button>
+            </div>
+        </div>
+
+        <div class="storyboard-page">
+            <table class="sb-table">
+                <thead>
+                    <tr class="sb-header">
+                        <th class="col-cut">Cut</th>
+                        <th class="col-picture">Picture (貼上或上傳)</th>
+                        <th class="col-content">Action / Dialogue</th>
+                        <th class="col-sfx">SFX</th>
+                        <th class="col-seconds">Sec</th>
+                    </tr>
+                </thead>
+                <tbody id="storyboard-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="controls no-print">
+        <button onclick="openPlayer()" class="bg-red-600 text-white px-8 py-4 rounded-full shadow-lg hover:scale-105 transition-transform">🎬 播放</button>
+        <button onclick="saveToCloud()" class="bg-indigo-600 text-white px-8 py-4 rounded-full shadow-lg hover:scale-105 transition-transform">💾 儲存</button>
+        <button onclick="addRow()" class="bg-blue-600 text-white px-8 py-4 rounded-full shadow-lg hover:scale-105 transition-transform">+ 新增</button>
+    </div>
+
+    <script>
+        const webAppUrl = "https://script.google.com/macros/s/AKfycbzTU2WXjU2KC6b0MR1HsjbvUf6ckiBPQagH2TW9LapoPX6PRqdWzJVNbRkHqfCIH4BAjA/exec";
+        let currentUserName = "";
+        let isLoginMode = true;
+        
+        let playlist = [];
+        let currentIndex = 0;
+        let isPlaying = false;
+        let playTimer = null;
+
+        function showLoading(text) {
+            document.getElementById('status-overlay').style.display = 'flex';
+            document.getElementById('status-text').innerText = text;
+        }
+
+        function hideLoading() {
+            document.getElementById('status-overlay').style.display = 'none';
+        }
+
+        function markChanged(el) {
+            if (el && el.classList) el.classList.add('unsaved-change');
+            document.getElementById('sync-status').innerText = "未儲存";
+        }
+
+        function logout() {
+            if (document.getElementById('sync-status').innerText === "未儲存") {
+                if (!confirm("您有未儲存的變更，確定要登出嗎？")) return;
+            }
+            currentUserName = "";
+            document.getElementById('main-editor').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('storyboard-body').innerHTML = "";
+            document.getElementById('project-title').value = "";
+            document.getElementById('director-name').value = "";
+            document.getElementById('project-date').value = "";
+        }
+
+        function formatDriveUrl(url, useAlternative = false) {
+            if (!url) return "";
+            if (url.startsWith('data:image')) return url;
+            
+            if (url.includes("drive.google.com")) {
+                let fileId = "";
+                const idMatch = url.match(/id=([^&]+)/);
+                const dMatch = url.match(/\/d\/([^/]+)/);
+                
+                if (idMatch) fileId = idMatch[1];
+                else if (dMatch) fileId = dMatch[1];
+                
+                if (fileId) {
+                    if (useAlternative) {
+                        return `https://drive.google.com/uc?export=view&id=${fileId}`;
+                    }
+                    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+                }
+            }
+            return url;
+        }
+
+        async function uploadImageToCloud(base64Data) {
+            try {
+                const response = await apiRequest({
+                    action: 'uploadImage',
+                    imageBlob: base64Data
+                });
+                if (response && response.success) {
+                    return response.imageUrl;
+                } else {
+                    throw new Error(response ? response.message : "伺服器無回應");
+                }
+            } catch (e) {
+                console.error("Upload Error:", e);
+                return null;
+            }
+        }
+
+        async function apiRequest(data) {
+            const payload = { ...data, currentUserName: currentUserName };
+            try {
+                const response = await fetch(webAppUrl, { 
+                    method: 'POST', 
+                    mode: 'cors',
+                    body: JSON.stringify(payload) 
+                });
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error("API Error:", error);
+                return { success: false, message: "連線失敗" };
+            }
+        }
+
+        async function handleImageFile(file, box) {
+            if (!file) return;
+            showLoading("上傳中...");
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const imageUrl = await uploadImageToCloud(e.target.result);
+                if (imageUrl) {
+                    updateImageBox(box, imageUrl);
+                    markChanged(box);
+                } else {
+                    alert("上傳失敗，請檢查 Drive 權限或後端設定。");
+                }
+                hideLoading();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function handlePaste(e, box) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    handleImageFile(item.getAsFile(), box);
+                }
+            }
+        }
+
+        function updateImageBox(box, src) {
+            box.classList.remove('img-error');
+            let img = box.querySelector('.sb-img') || document.createElement('img');
+            img.className = 'sb-img';
+            
+            const originalSrc = src;
+            img.src = formatDriveUrl(src);
+            
+            img.onerror = () => {
+                const altSrc = formatDriveUrl(originalSrc, true);
+                if (img.src !== altSrc) {
+                    img.src = altSrc;
+                } else {
+                    box.classList.add('img-error');
+                    const pt = box.querySelector('.placeholder-text');
+                    pt.innerText = "無法載入圖片";
+                    pt.classList.remove('hidden');
+                }
+            };
+
+            img.onload = () => {
+                box.querySelector('.placeholder-text').classList.add('hidden');
+            };
+
+            if (!box.querySelector('.sb-img')) box.appendChild(img);
+            box.classList.add('has-img');
+        }
+
+        async function saveToCloud() {
+            showLoading("儲存中...");
+            try {
+                const rows = Array.from(document.querySelectorAll('.sb-row'));
+                const items = rows.map(row => ({
+                    cut: row.querySelector('.cut-num').value,
+                    image: row.querySelector('.sb-img')?.src || "",
+                    action: row.querySelector('.action-text').value,
+                    sfx: row.querySelector('.sfx-text').value,
+                    seconds: row.querySelector('.sec-val').value
+                }));
+
+                const json = await apiRequest({
+                    action: 'saveStoryboard',
+                    projectTitle: document.getElementById('project-title').value,
+                    director: document.getElementById('director-name').value,
+                    date: document.getElementById('project-date').value,
+                    items: JSON.stringify(items)
+                });
+                
+                if (json.success) {
+                    document.getElementById('sync-status').innerText = "已儲存";
+                    document.querySelectorAll('.unsaved-change').forEach(el => el.classList.remove('unsaved-change'));
+                } else {
+                    alert("儲存失敗: " + json.message);
+                }
+            } catch (e) { alert("同步失敗"); }
+            finally { hideLoading(); }
+        }
+
+        async function handleAuth() {
+            const user = document.getElementById('login-user').value.trim();
+            const pass = document.getElementById('login-pass').value.trim();
+            if(!user || !pass) return alert("請輸入帳號密碼");
+            
+            showLoading("登入中...");
+            try {
+                const json = await apiRequest({ 
+                    action: isLoginMode ? 'login' : 'register', 
+                    username: user, 
+                    password: pass 
+                });
+                
+                if (json.success) {
+                    currentUserName = user;
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('main-editor').style.display = 'block';
+                    document.getElementById('user-display').innerText = `User: ${user}`;
+                    loadStoryboardFromCloud();
+                } else {
+                    alert(json.message);
+                }
+            } catch(e) { alert("連線異常"); } finally { hideLoading(); }
+        }
+
+        async function loadStoryboardFromCloud() {
+            showLoading("載入資料...");
+            try {
+                const json = await apiRequest({ action: 'getStoryboard' });
+                const tbody = document.getElementById('storyboard-body');
+                tbody.innerHTML = "";
+                
+                if (json.success) {
+                    document.getElementById('project-title').value = json.projectInfo?.title || "";
+                    document.getElementById('director-name').value = json.projectInfo?.director || "";
+                    document.getElementById('project-date').value = json.projectInfo?.date || "";
+                    
+                    const items = typeof json.items === 'string' ? JSON.parse(json.items) : json.items;
+                    if (items && items.length) {
+                        items.forEach(item => addPopulatedRow(item));
+                    } else {
+                        addRow();
+                    }
+                } else {
+                    addRow();
+                }
+            } catch (e) { addRow(); } finally { hideLoading(); }
+        }
+
+        function addPopulatedRow(data) {
+            const tbody = document.getElementById('storyboard-body');
+            const row = tbody.insertRow();
+            row.className = 'sb-row';
+            row.innerHTML = `
+                <td class="col-cut"><input type="text" class="cut-num w-full text-center font-bold border-none" oninput="markChanged(this)" value="${data.cut || ''}"></td>
+                <td class="col-picture">
+                    <div class="picture-box" onpaste="handlePaste(event, this)" tabindex="0">
+                        <span class="placeholder-text text-gray-400 text-[10px]">點擊或貼上圖片</span>
+                        <input type="file" class="hidden" accept="image/*" onchange="handleImageFile(this.files[0], this.parentElement)">
+                        <div class="upload-overlay no-print" onclick="this.parentElement.querySelector('input').click()">變更</div>
+                    </div>
+                </td>
+                <td class="col-content"><textarea class="text-input action-text" oninput="markChanged(this)" placeholder="動作敘述...">${data.action || ''}</textarea></td>
+                <td class="col-sfx"><textarea class="text-input sfx-text" oninput="markChanged(this)" placeholder="音效...">${data.sfx || ''}</textarea></td>
+                <td class="col-seconds"><input type="text" class="w-full text-center font-bold sec-val border-none" oninput="markChanged(this)" value="${data.seconds || '2.0'}"></td>
+            `;
+            if (data.image) {
+                updateImageBox(row.querySelector('.picture-box'), data.image);
+            }
+        }
+        
+        function addRow() { 
+            addPopulatedRow({ cut: document.querySelectorAll('.sb-row').length + 1 }); 
+        }
+
+        function toggleAuthMode() { 
+            isLoginMode = !isLoginMode; 
+            document.getElementById('auth-title').innerText = isLoginMode ? "分鏡表系統" : "帳號註冊"; 
+            document.getElementById('auth-toggle-btn').innerText = isLoginMode ? "註冊新帳號" : "返回登入";
+        }
+
+        /* --- 播放器修復核心 --- */
+
+        function openPlayer() {
+            // 重新讀取當前畫面上的所有資料，確保包含使用者最新的輸入
+            playlist = Array.from(document.querySelectorAll('.sb-row')).map((row, index) => {
+                const secVal = row.querySelector('.sec-val').value;
+                return {
+                    cut: row.querySelector('.cut-num').value || (index + 1),
+                    img: row.querySelector('.sb-img')?.src || "",
+                    // 確保將字串轉換為浮點數，若解析失敗則預設為 2.0 秒
+                    duration: (parseFloat(secVal) || 2.0) * 1000 
+                };
+            }).filter(item => item.img !== ""); // 只播放有圖片的格子
+
+            if (playlist.length === 0) return alert("請先加入分鏡圖");
+            
+            currentIndex = 0;
+            isPlaying = false; // 初始狀態設為暫停
+            document.getElementById('play-icon').innerText = "▶️";
+            document.getElementById('preview-player').style.display = 'flex';
+            showFrame();
+        }
+
+        function closePlayer() {
+            isPlaying = false;
+            clearTimeout(playTimer);
+            document.getElementById('preview-player').style.display = 'none';
+        }
+
+        function showFrame() {
+            const frame = playlist[currentIndex];
+            document.getElementById('player-img').src = frame.img;
+            
+            // 更新 UI 資訊
+            document.getElementById('player-info').innerText = `Cut: ${frame.cut} | Duration: ${frame.duration / 1000}s`;
+
+            // 如果正在播放，則根據當前格子的時間設定計時器
+            if (isPlaying) {
+                clearTimeout(playTimer);
+                playTimer = setTimeout(() => {
+                    nextFrame();
+                }, frame.duration);
+            }
+        }
+
+        function nextFrame() {
+            clearTimeout(playTimer);
+            currentIndex = (currentIndex + 1) % playlist.length;
+            showFrame();
+        }
+
+        function prevFrame() {
+            clearTimeout(playTimer);
+            currentIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+            showFrame();
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('play-icon').innerText = isPlaying ? "⏸" : "▶️";
+            
+            if (isPlaying) {
+                showFrame(); // 開始計時
+            } else {
+                clearTimeout(playTimer); // 停止計時
+            }
+        }
+    </script>
+</body>
+</html>
